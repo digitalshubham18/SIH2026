@@ -112,6 +112,10 @@ async def run_seed(db, hash_password):
             "district": "Ludhiana",
             "mandi_id": khanna["id"] if khanna else None,
             "mandi_name": khanna["name"] if khanna else None,
+            "mandi_code": khanna["code"] if khanna else None,
+            "verification_status": "approved",
+            "verification_note": "Auto-approved (demo account)",
+            "designation": "Procurement Officer",
             "created_at": _iso(),
         })
 

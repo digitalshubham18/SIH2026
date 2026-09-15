@@ -22,6 +22,8 @@ import AdminMandis from "@/pages/AdminMandis";
 import AdminTodayCrops from "@/pages/AdminTodayCrops";
 import AdminMachinery from "@/pages/AdminMachinery";
 import AdminJobs from "@/pages/AdminJobs";
+import AdminOfficers from "@/pages/AdminOfficers";
+import OfficerRegister from "@/pages/OfficerRegister";
 
 function Protected({ children, role }) {
   const { user, loading } = useAuth();
@@ -41,6 +43,7 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/officer-register" element={<OfficerRegister />} />
             <Route path="/mandis" element={<Mandis />} />
             <Route path="/queue/:mandiId" element={<QueueStatus />} />
             <Route path="/dashboard" element={<Protected><FarmerDashboard /></Protected>} />
@@ -56,6 +59,7 @@ export default function App() {
               <Route path="grievances" element={<AdminGrievances />} />
               <Route path="machinery" element={<AdminMachinery />} />
               <Route path="jobs" element={<AdminJobs />} />
+              <Route path="officers" element={<AdminOfficers />} />
               <Route path="mandis" element={<AdminMandis />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -88,6 +88,19 @@ class RegisterIn(BaseModel):
     aadhaar_last4: Optional[str] = None
     language: str = "en"
 
+class OfficerRegisterIn(BaseModel):
+    name: str
+    phone: str
+    password: str
+    email: str
+    mandi_id: str
+    aadhaar_last4: str
+    designation: Optional[str] = "Procurement Officer"
+    documents_note: Optional[str] = None
+
+class OfficerReviewIn(BaseModel):
+    reason: Optional[str] = None
+
 class LoginIn(BaseModel):
     phone: str
     password: str
@@ -162,10 +175,93 @@ async def login(body: LoginIn):
     user = await db.users.find_one({"phone": body.phone})
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(401, "Invalid phone or password")
+    # Block un-approved officer/mandi-owner logins
+    if user.get("role") == "officer" and user.get("verification_status", "approved") != "approved":
+        status = user.get("verification_status", "pending")
+        raise HTTPException(403, f"Officer account is {status}. Please wait for DoCA verification.")
     token = make_token(user["id"], user["role"])
     user.pop("password_hash", None)
     user.pop("_id", None)
     return {"token": token, "user": user}
+
+@api.post("/auth/officer-register")
+async def officer_register(body: OfficerRegisterIn):
+    if await db.users.find_one({"phone": body.phone}):
+        raise HTTPException(400, "Phone already registered")
+    if await db.users.find_one({"email": body.email}):
+        raise HTTPException(400, "Email already registered")
+    mandi = await db.mandis.find_one({"id": body.mandi_id})
+    if not mandi:
+        raise HTTPException(404, "Mandi not found")
+    if len(body.aadhaar_last4) != 4 or not body.aadhaar_last4.isdigit():
+        raise HTTPException(400, "Aadhaar last 4 must be 4 digits")
+    user = {
+        "id": new_id(),
+        "name": body.name,
+        "phone": body.phone,
+        "email": body.email,
+        "password_hash": hash_password(body.password),
+        "role": "officer",
+        "designation": body.designation,
+        "mandi_id": body.mandi_id,
+        "mandi_name": mandi["name"],
+        "mandi_code": mandi["code"],
+        "state": mandi["state"],
+        "district": mandi["district"],
+        "aadhaar_last4": body.aadhaar_last4,
+        "documents_note": body.documents_note,
+        "verification_status": "pending",
+        "verification_note": None,
+        "reviewed_by": None,
+        "reviewed_at": None,
+        "language": "en",
+        "created_at": now_iso(),
+    }
+    await db.users.insert_one(user)
+    user.pop("password_hash", None)
+    user.pop("_id", None)
+    # Do NOT issue token — account is pending
+    return {"ok": True, "user": user, "message": "Application submitted. DoCA will verify within 24-48 hours."}
+
+@api.get("/admin/officer-applications")
+async def officer_applications(status: Optional[str] = None, user=Depends(current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    q = {"role": "officer"}
+    if status:
+        q["verification_status"] = status
+    officers = await db.users.find(q, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
+    return officers
+
+@api.post("/admin/officers/{uid}/approve")
+async def approve_officer(uid: str, body: OfficerReviewIn, user=Depends(current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    o = await db.users.find_one({"id": uid, "role": "officer"})
+    if not o:
+        raise HTTPException(404, "Officer not found")
+    await db.users.update_one({"id": uid}, {"$set": {
+        "verification_status": "approved",
+        "verification_note": body.reason or "Documents verified.",
+        "reviewed_by": user["name"],
+        "reviewed_at": now_iso(),
+    }})
+    return {"ok": True}
+
+@api.post("/admin/officers/{uid}/reject")
+async def reject_officer(uid: str, body: OfficerReviewIn, user=Depends(current_user)):
+    if user["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    o = await db.users.find_one({"id": uid, "role": "officer"})
+    if not o:
+        raise HTTPException(404, "Officer not found")
+    await db.users.update_one({"id": uid}, {"$set": {
+        "verification_status": "rejected",
+        "verification_note": body.reason or "Verification failed.",
+        "reviewed_by": user["name"],
+        "reviewed_at": now_iso(),
+    }})
+    return {"ok": True}
 
 @api.get("/auth/me")
 async def me(user=Depends(current_user)):

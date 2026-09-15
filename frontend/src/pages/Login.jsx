@@ -67,8 +67,9 @@ export default function Login() {
                 {loading ? "…" : t("login")}
               </Button>
             </form>
-            <div className="text-center mt-4 text-sm">
-              <Link to="/register" data-testid="link-register" className="text-emerald-700 hover:underline">{t("new_user")}</Link>
+            <div className="text-center mt-4 text-sm space-y-1">
+              <Link to="/register" data-testid="link-register" className="block text-emerald-700 hover:underline">{t("new_user")}</Link>
+              <Link to="/officer-register" data-testid="link-officer-register" className="block text-amber-700 hover:underline font-medium">Are you a mandi owner? Register your mandi →</Link>
             </div>
           </CardContent>
         </Card>
