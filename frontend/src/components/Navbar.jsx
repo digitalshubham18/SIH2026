@@ -21,7 +21,7 @@ export default function Navbar() {
       </div>
       <header className="sticky top-0 z-40 glass border-b border-emerald-100">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <Link to="/" data-testid="nav-logo" className="flex items-center gap-3">
+          <Link to={user ? (user.role === "farmer" ? "/dashboard" : "/admin") : "/"} data-testid="nav-logo" className="flex items-center gap-3">
             <AshokaEmblem size={44} />
             <div className="leading-tight">
               <div className="font-display font-bold text-emerald-900 text-lg">{t("app_name")}</div>

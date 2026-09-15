@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { useLang } from "@/contexts/LangContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Tractor, Calendar, Users, ShieldCheck, TrendingUp, CreditCard, ArrowRight, CheckCircle2, Clock, BellRing, Building2, FileText } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Tractor, Calendar, Users, ShieldCheck, TrendingUp, CreditCard, ArrowRight, Clock, BellRing, Building2, FileText } from "lucide-react";
 
 const HERO_IMG = "https://images.unsplash.com/photo-1673538064388-21d1aaaf6594?crop=entropy&cs=srgb&fm=jpg&q=85";
 
@@ -31,12 +32,15 @@ function Stat({ value, label, suffix = "" }) {
 
 export default function Landing() {
   const { t } = useLang();
+  const { user } = useAuth();
+
+  // Logged-in users get sent to their dashboard automatically
+  if (user) return <Navigate to={user.role === "farmer" ? "/dashboard" : "/admin"} replace />;
 
   return (
     <div className="min-h-screen">
       <Navbar />
 
-      {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-white to-amber-50" />
         <div className="absolute top-20 right-0 w-[500px] h-[500px] bg-emerald-200/30 rounded-full blur-3xl" />
@@ -97,7 +101,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* How it works */}
       <section className="max-w-7xl mx-auto px-6 py-16">
         <div className="text-center mb-12">
           <div className="text-xs uppercase tracking-widest text-emerald-700 font-semibold">4 Simple Steps</div>
@@ -124,7 +127,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Features grid */}
       <section className="bg-emerald-50/50 border-y border-emerald-100">
         <div className="max-w-7xl mx-auto px-6 py-16">
           <h2 className="font-display text-3xl md:text-4xl font-bold text-emerald-950 mb-10">{t("features")}</h2>
@@ -147,7 +149,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* FAQ */}
       <section className="max-w-4xl mx-auto px-6 py-16">
         <h2 className="font-display text-3xl md:text-4xl font-bold text-emerald-950 mb-8 text-center">{t("faq")}</h2>
         <Accordion type="single" collapsible className="w-full">
@@ -166,7 +167,6 @@ export default function Landing() {
         </Accordion>
       </section>
 
-      {/* CTA */}
       <section className="max-w-7xl mx-auto px-6 py-16">
         <div className="rounded-3xl bg-gradient-to-br from-emerald-700 to-emerald-900 p-10 md:p-14 text-white flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
