@@ -359,6 +359,119 @@ async def read_all(user=Depends(current_user)):
     await db.notifications.update_many({"user_id": user["id"]}, {"$set": {"read": True}})
     return {"ok": True}
 
+# ---------- Grievances / Support Tickets ----------
+GRIEVANCE_SLA_HOURS = 48
+
+class GrievanceIn(BaseModel):
+    booking_id: Optional[str] = None
+    category: str  # weight | grade | payment | other
+    subject: str
+    description: str
+
+class GrievanceRespond(BaseModel):
+    action: str  # resolve | reject | in_review
+    resolution_note: str
+
+def _sla_hours_left(created_iso: str) -> float:
+    try:
+        created = datetime.fromisoformat(created_iso)
+    except Exception:
+        return 0
+    elapsed = (datetime.now(timezone.utc) - created).total_seconds() / 3600
+    return round(GRIEVANCE_SLA_HOURS - elapsed, 1)
+
+def _enrich_grievance(g: dict) -> dict:
+    left = _sla_hours_left(g["created_at"]) if g["status"] in ("open", "in_review") else 0
+    g["sla_hours_left"] = left
+    g["sla_breached"] = left < 0 and g["status"] in ("open", "in_review")
+    return g
+
+@api.post("/grievances")
+async def create_grievance(body: GrievanceIn, user=Depends(current_user)):
+    if body.category not in ("weight", "grade", "payment", "other"):
+        raise HTTPException(400, "Invalid category")
+    booking_ref = None
+    if body.booking_id:
+        b = await db.bookings.find_one({"id": body.booking_id})
+        if b and b["farmer_id"] == user["id"]:
+            booking_ref = {"token_number": b["token_number"], "mandi_name": b["mandi_name"], "crop_name": b["crop_name"]}
+    ticket_no = f"GRV-{random.randint(100000, 999999)}"
+    g = {
+        "id": new_id(),
+        "ticket_no": ticket_no,
+        "farmer_id": user["id"],
+        "farmer_name": user["name"],
+        "farmer_phone": user["phone"],
+        "farmer_state": user.get("state"),
+        "booking_id": body.booking_id,
+        "booking_ref": booking_ref,
+        "category": body.category,
+        "subject": body.subject,
+        "description": body.description,
+        "status": "open",
+        "sla_hours": GRIEVANCE_SLA_HOURS,
+        "resolution_note": None,
+        "responded_by": None,
+        "responded_at": None,
+        "created_at": now_iso(),
+    }
+    await db.grievances.insert_one(g)
+    g.pop("_id", None)
+    await _push_notification(user["id"], "Grievance Registered", f"Ticket {ticket_no} filed. SLA: {GRIEVANCE_SLA_HOURS} hrs", "info")
+    return _enrich_grievance(g)
+
+@api.get("/grievances/my")
+async def my_grievances(user=Depends(current_user)):
+    gs = await db.grievances.find({"farmer_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return [_enrich_grievance(g) for g in gs]
+
+@api.get("/admin/grievances")
+async def admin_grievances(status: Optional[str] = None, category: Optional[str] = None, user=Depends(admin_only)):
+    q = {}
+    if status:
+        q["status"] = status
+    if category:
+        q["category"] = category
+    gs = await db.grievances.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return [_enrich_grievance(g) for g in gs]
+
+@api.get("/admin/grievance-stats")
+async def grievance_stats(user=Depends(admin_only)):
+    total = await db.grievances.count_documents({})
+    open_c = await db.grievances.count_documents({"status": "open"})
+    review_c = await db.grievances.count_documents({"status": "in_review"})
+    resolved_c = await db.grievances.count_documents({"status": "resolved"})
+    rejected_c = await db.grievances.count_documents({"status": "rejected"})
+    # SLA breach = open/in_review older than 48h
+    breach_cutoff = (datetime.now(timezone.utc) - timedelta(hours=GRIEVANCE_SLA_HOURS)).isoformat()
+    breached = await db.grievances.count_documents({
+        "status": {"$in": ["open", "in_review"]}, "created_at": {"$lt": breach_cutoff}
+    })
+    return {"total": total, "open": open_c, "in_review": review_c, "resolved": resolved_c, "rejected": rejected_c, "sla_breached": breached}
+
+@api.post("/admin/grievances/{gid}/respond")
+async def respond_grievance(gid: str, body: GrievanceRespond, user=Depends(admin_only)):
+    g = await db.grievances.find_one({"id": gid})
+    if not g:
+        raise HTTPException(404, "Not found")
+    if body.action not in ("resolve", "reject", "in_review"):
+        raise HTTPException(400, "Invalid action")
+    new_status = {"resolve": "resolved", "reject": "rejected", "in_review": "in_review"}[body.action]
+    await db.grievances.update_one({"id": gid}, {"$set": {
+        "status": new_status,
+        "resolution_note": body.resolution_note,
+        "responded_by": user["name"],
+        "responded_at": now_iso(),
+    }})
+    ntype = "success" if body.action == "resolve" else ("warning" if body.action == "reject" else "info")
+    await _push_notification(
+        g["farmer_id"],
+        f"Grievance {g['ticket_no']} · {new_status.replace('_', ' ').title()}",
+        body.resolution_note[:120],
+        ntype,
+    )
+    return {"ok": True}
+
 # ---------- Admin / Officer ----------
 @api.get("/admin/stats")
 async def admin_stats(user=Depends(admin_only)):

@@ -34,8 +34,12 @@ export default function Navbar() {
             <Link to="/mandis" data-testid="nav-mandis" className="hover:text-emerald-700">{t("mandis")}</Link>
             {user && <Link to="/dashboard" data-testid="nav-dashboard" className="hover:text-emerald-700">{t("dashboard")}</Link>}
             {user && <Link to="/bookings" data-testid="nav-bookings" className="hover:text-emerald-700">{t("my_bookings")}</Link>}
+            {user && user.role === "farmer" && <Link to="/grievances" data-testid="nav-grievances" className="hover:text-emerald-700">{t("grievance_desk")}</Link>}
             {user && ["admin","officer"].includes(user.role) && (
               <Link to="/admin" data-testid="nav-admin" className="hover:text-emerald-700 flex items-center gap-1"><ShieldCheck className="w-4 h-4" />{t("admin")}</Link>
+            )}
+            {user && ["admin","officer"].includes(user.role) && (
+              <Link to="/admin/grievances" data-testid="nav-admin-grievances" className="hover:text-emerald-700">Grievances</Link>
             )}
           </nav>
 

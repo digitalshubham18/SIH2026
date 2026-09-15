@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, TrendingUp, Bell, Wallet, ArrowRight, Tractor, MapPin } from "lucide-react";
+import { Calendar, TrendingUp, Bell, Wallet, ArrowRight, Tractor, MapPin, LifeBuoy } from "lucide-react";
 
 const statusColor = {
   booked: "bg-blue-100 text-blue-800",
@@ -110,6 +110,7 @@ export default function FarmerDashboard() {
                 <Link to="/mandis"><Button variant="outline" className="w-full justify-start border-emerald-200 hover:bg-emerald-50" data-testid="qa-prices"><TrendingUp className="w-4 h-4 mr-2 text-emerald-700" />{t("view_prices")}</Button></Link>
                 <Link to="/bookings"><Button variant="outline" className="w-full justify-start border-emerald-200 hover:bg-emerald-50" data-testid="qa-bookings"><Wallet className="w-4 h-4 mr-2 text-emerald-700" />{t("my_bookings")}</Button></Link>
                 <Link to="/notifications"><Button variant="outline" className="w-full justify-start border-emerald-200 hover:bg-emerald-50" data-testid="qa-notif"><Bell className="w-4 h-4 mr-2 text-emerald-700" />{t("notifications")}</Button></Link>
+                <Link to="/grievances"><Button variant="outline" className="w-full justify-start border-emerald-200 hover:bg-emerald-50" data-testid="qa-grievance"><LifeBuoy className="w-4 h-4 mr-2 text-emerald-700" />{t("grievance_desk")}</Button></Link>
               </div>
             </CardContent>
           </Card>

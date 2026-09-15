@@ -13,6 +13,8 @@ import QueueStatus from "@/pages/QueueStatus";
 import MyBookings from "@/pages/MyBookings";
 import Notifications from "@/pages/Notifications";
 import AdminDashboard from "@/pages/AdminDashboard";
+import Grievances from "@/pages/Grievances";
+import AdminGrievances from "@/pages/AdminGrievances";
 
 function Protected({ children, role }) {
   const { user, loading } = useAuth();
@@ -38,7 +40,9 @@ export default function App() {
             <Route path="/book" element={<Protected><BookSlot /></Protected>} />
             <Route path="/bookings" element={<Protected><MyBookings /></Protected>} />
             <Route path="/notifications" element={<Protected><Notifications /></Protected>} />
+            <Route path="/grievances" element={<Protected><Grievances /></Protected>} />
             <Route path="/admin" element={<Protected role={["admin", "officer"]}><AdminDashboard /></Protected>} />
+            <Route path="/admin/grievances" element={<Protected role={["admin", "officer"]}><AdminGrievances /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
