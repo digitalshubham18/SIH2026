@@ -455,6 +455,53 @@ async def pay(bid: str, user=Depends(admin_only)):
 async def admin_mandis(user=Depends(admin_only)):
     return await db.mandis.find({}, {"_id": 0}).to_list(500)
 
+# ---------- Analytics ----------
+@api.get("/admin/analytics")
+async def admin_analytics(user=Depends(admin_only)):
+    completed = await db.bookings.find(
+        {"status": {"$in": ["completed", "paid"]}}, {"_id": 0}
+    ).to_list(5000)
+
+    # State-wise procurement (from mandis)
+    mandis = await db.mandis.find({}, {"_id": 0}).to_list(500)
+    mmap = {m["id"]: m for m in mandis}
+    state_agg = {}
+    for b in completed:
+        m = mmap.get(b["mandi_id"])
+        if not m:
+            continue
+        s = m["state"]
+        entry = state_agg.setdefault(s, {"state": s, "quintal": 0, "amount": 0, "bookings": 0})
+        entry["quintal"] += b.get("actual_weight_quintal") or 0
+        entry["amount"] += b.get("total_amount") or 0
+        entry["bookings"] += 1
+    state_wise = sorted(state_agg.values(), key=lambda x: -x["quintal"])
+
+    # Crop-wise
+    crop_agg = {}
+    for b in completed:
+        c = b.get("crop_name", "Unknown")
+        entry = crop_agg.setdefault(c, {"crop": c, "quintal": 0, "amount": 0})
+        entry["quintal"] += b.get("actual_weight_quintal") or 0
+        entry["amount"] += b.get("total_amount") or 0
+    crop_wise = sorted(crop_agg.values(), key=lambda x: -x["quintal"])
+
+    # Daily arrivals - last 7 days by slot_date
+    all_bookings = await db.bookings.find({}, {"_id": 0}).to_list(5000)
+    today = datetime.now(timezone.utc).date()
+    days = [(today - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
+    daily_map = {d: {"date": d, "bookings": 0, "completed": 0, "quintal": 0} for d in days}
+    for b in all_bookings:
+        d = b.get("slot_date")
+        if d in daily_map:
+            daily_map[d]["bookings"] += 1
+            if b.get("status") in ("completed", "paid"):
+                daily_map[d]["completed"] += 1
+                daily_map[d]["quintal"] += b.get("actual_weight_quintal") or 0
+    daily = [daily_map[d] for d in days]
+
+    return {"state_wise": state_wise, "crop_wise": crop_wise, "daily_arrivals": daily}
+
 # ---------- Include & CORS ----------
 app.include_router(api)
 

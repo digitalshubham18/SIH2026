@@ -128,3 +128,60 @@ async def run_seed(db, hash_password):
             "language": "pa",
             "created_at": _iso(),
         })
+
+    # Historical demo bookings for analytics wow-factor (last 7 days)
+    if await db.bookings.count_documents({"status": {"$in": ["completed", "paid"]}}) < 20:
+        from datetime import timedelta
+        mandis_all = await db.mandis.find({}).to_list(500)
+        crops_all = await db.crops.find({}).to_list(50)
+        today = datetime.now(timezone.utc).date()
+        names = [
+            ("Ramesh Kumar", "9800000001", "Punjab"),
+            ("Sukhdev Singh", "9800000002", "Punjab"),
+            ("Harpreet Kaur", "9800000003", "Haryana"),
+            ("Ravi Sharma", "9800000004", "Uttar Pradesh"),
+            ("Vikas Patel", "9800000005", "Madhya Pradesh"),
+            ("Suresh Yadav", "9800000006", "Maharashtra"),
+            ("Rajni Devi", "9800000007", "Haryana"),
+            ("Mohan Lal", "9800000008", "Punjab"),
+            ("Kailash Meena", "9800000009", "Madhya Pradesh"),
+            ("Anita Kumari", "9800000010", "Uttar Pradesh"),
+        ]
+        hist = []
+        counter = 0
+        for day_offset in range(7, 0, -1):
+            d = (today - timedelta(days=day_offset)).isoformat()
+            n_bookings = random.randint(5, 12)
+            for _ in range(n_bookings):
+                counter += 1
+                m = random.choice(mandis_all)
+                c = random.choice(crops_all)
+                name, phone, _state = random.choice(names)
+                qty = round(random.uniform(8, 40), 1)
+                price = c["msp"] + random.uniform(-30, 200)
+                total = round(qty * price, 2)
+                is_paid = random.random() > 0.2
+                hist.append({
+                    "id": f"hist-{counter}",
+                    "farmer_id": f"hist-farmer-{counter}",
+                    "farmer_name": name,
+                    "farmer_phone": phone,
+                    "mandi_id": m["id"],
+                    "mandi_name": m["name"],
+                    "crop_id": c["id"],
+                    "crop_name": c["name_en"],
+                    "slot_date": d,
+                    "slot_time": f"{random.randint(8, 15):02d}:00",
+                    "quantity_quintal": qty,
+                    "token_number": counter,
+                    "status": "paid" if is_paid else "completed",
+                    "actual_weight_quintal": qty,
+                    "quality_grade": random.choice(["A", "A", "B", "B", "C"]),
+                    "price_per_quintal": round(price, 2),
+                    "total_amount": total,
+                    "payment_status": "paid" if is_paid else "pending",
+                    "payment_ref": f"DBT{random.randint(100000, 999999)}" if is_paid else None,
+                    "created_at": _iso(),
+                })
+        if hist:
+            await db.bookings.insert_many(hist)
