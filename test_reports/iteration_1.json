@@ -1,0 +1,31 @@
+{
+  "summary": "First-finish smoke test of DoCA e-Procurement portal. Backend smoke (crops=8, mandis=12, admin+farmer login) OK. Frontend end-to-end flows covered: landing load, language switcher (EN/HI/PA via Radix combobox), farmer login -> /dashboard, book slot 3-step (Wheat -> Khanna mandi -> date/qty/time -> confirm -> /bookings), My Bookings render, registration with simulated OTP visible on screen -> verify -> auto-login to /dashboard, admin login -> Procurement Command Center rows, and complete admin lifecycle: Start (booked->in_process) -> Complete (weight/grade/price) -> Initiate DBT Payment (payment_ref DBTxxxxxx generated, status=paid). Punjabi labels render correctly in navbar and stat cards after switch.",
+  "tested_scope": ["frontend", "backend", "auth", "integration"],
+  "passed": [
+    "GET /api/crops returns 8 crops",
+    "GET /api/mandis returns 12 mandis",
+    "POST /api/auth/login admin (9999900001) returns JWT",
+    "POST /api/auth/login farmer (9876543210) returns JWT",
+    "Landing page loads with hero and navbar",
+    "Language switcher EN/HI/PA works (Devanagari and Gurmukhi chars rendered)",
+    "Farmer login redirects to /dashboard",
+    "Book slot flow: crop -> mandi (mandi-pb-khn-01 Khanna) -> date/time/qty -> confirm -> /bookings with token",
+    "My Bookings page shows bookings list",
+    "Register: send-otp returns simulated OTP shown via data-testid=otp-code, verify redirects to /dashboard (auto-login)",
+    "Admin login -> /admin shows stat cards + bookings rows",
+    "Admin Start -> Complete (weight 9.5, grade, price 2275) -> Initiate DBT Payment; booking status becomes 'paid' with DBT ref visible in row"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": {
+    "mocked": "Twilio SMS is simulated - OTP is returned in /api/auth/send-otp response body and displayed on Register step 2 via data-testid=otp-code. DBT payment is simulated with fake DBTxxxxxx ref.",
+    "not_explicitly_retested": [
+      "Queue Status auto-refresh timing (5s) - page reachable but timing not asserted",
+      "Notifications page mark-all-read (not opened in this pass)",
+      "All Mandis filter combinations (crop+state+search)"
+    ]
+  }
+}
