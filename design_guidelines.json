@@ -1,0 +1,108 @@
+{
+  "project_name": "DoCA Smart Grain Procurement & Queue Management Portal (PMFBY & e-NAM Inspired)",
+  "design_archetype": "Government Official & Modern High-Density Dashboard Hybrid (Organic & Swiss High-Contrast)",
+  "target_audience": "Farmers, Mandi Officers, Department of Consumer Affairs (DoCA) Officials, SIH Judges",
+  "theme": "Light Theme Default (with High Contrast Govt Accessibility Toggle)",
+  "typography": {
+    "heading_font": "Outfit, Cabinet Grotesk, sans-serif",
+    "body_font": "Inter, system-ui, sans-serif",
+    "mono_font": "JetBrains Mono, monospace",
+    "hindi_font": "Noto Sans Devanagari, sans-serif",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-semibold",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed text-slate-700 dark:text-slate-300",
+      "caption": "text-xs font-semibold uppercase tracking-widest text-emerald-800 dark:text-emerald-400"
+    }
+  },
+  "colors": {
+    "primary": {
+      "deep_forest_green": "#114B32",
+      "emerald_accent": "#059669",
+      "light_emerald": "#ECFDF5",
+      "border_emerald": "#A7F3D0"
+    },
+    "government_tricolor_accents": {
+      "saffron_badge": "#D97706",
+      "saffron_subtle": "#FEF3C7",
+      "ashoka_blue": "#1E3A8A",
+      "white_surface": "#FFFFFF",
+      "cream_canvas": "#F8FAFC"
+    },
+    "neutrals": {
+      "background_light": "#F8FAFC",
+      "surface_card": "#FFFFFF",
+      "text_main": "#0F172A",
+      "text_muted": "#475569",
+      "border_subtle": "#E2E8F0",
+      "border_dark": "#1E293B"
+    },
+    "status_indicators": {
+      "queue_active": "#10B981",
+      "queue_waiting": "#F59E0B",
+      "procurement_completed": "#0284C7",
+      "payment_disbursed": "#16A34A",
+      "payment_pending": "#E11D48"
+    }
+  },
+  "layout_and_grid": {
+    "landing_hero": "Bento Grid Mode A (Tetris Split: 7-col hero text + live statistics badge counter card, 5-col dynamic queue status simulation token)",
+    "dashboard_grid": "Bento Grid Mode B (High Density Dashboard: 4-col key metrics top row, 8-col active token / queue status monitor, 4-col quick slot booking widget)",
+    "container_padding": "Generous Spacing (p-6 to p-12 for section containers, inner padding p-6 on cards to prevent border collision)",
+    "header_spec": "Sticky Glassmorphism Header (backdrop-blur-md bg-white/90 border-b border-emerald-100 z-50 with GOI Ashoka Pillar emblem graphic / text, scheme selector, language switcher, and Auth CTA button)",
+    "footer_spec": "Dark Emerald Solid Canvas (bg-emerald-950 text-emerald-50 py-16 with official DoCA branding, emergency helpline 1800-FARM-HELP, and SIH 2026 submission credits)"
+  },
+  "key_components_structure": {
+    "LandingPage": "Hero section with official emblem header, scheme highlights, live counter ticker, interactive queue estimator widget, how-it-works scrollytelling steps, testimonials from farmers, FAQ accordion, and government contact details",
+    "AuthModal": "Phone number + password JWT auth with simulated SMS OTP verification flow",
+    "FarmerDashboard": "Slot booking interactive step-form, active queue live token tracker with animated position progress, procurement lot details, direct bank transfer payment status (DBT), and notification center",
+    "SlotBookingModal": "Calendar picker with real-time available time slots per procurement center with capacity gauge bar",
+    "LiveQueueMonitor": "Visual token counter with live estimated wait time, audio alert toggle, SMS notification indicator, and step-by-step mandi workflow",
+    "OfficerDashboard": "Procurement Center Manager console: token scanner/verifier, grain quality assay input, weight scale logging, instant DBT payment initiation trigger, and center analytics chart",
+    "ProcurementCenterDirectory": "Searchable & filterable directory of centers with real-time crowd level indicators (Low / Medium / High wait times)",
+    "MultiLangSwitcher": "Seamless English / Hindi / Regional language switcher toggle supporting instantly updated UI strings"
+  },
+  "motion_and_interactions": {
+    "page_transitions": "Framer Motion staggered entrance for card grids and dynamic metrics",
+    "queue_token_pulse": "Live glowing pulse effect on current queue token number with live time countdown",
+    "micro_interactions": "Smooth hover scale (hover:-translate-y-1 hover:shadow-lg) on interactive cards, active press state on buttons",
+    "accessibility": "Full keyboard navigation support, high contrast indicators, data-testid attributes on all key controls"
+  },
+  "image_urls": {
+    "hero_farmer_harvest": "https://images.unsplash.com/photo-1673538064388-21d1aaaf6594?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "wheat_harvesting_field": "https://images.unsplash.com/photo-1639941798780-04529d362f9a?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "grain_mandi_procurement": "https://images.unsplash.com/photo-1691693812002-0e7bf1c18810?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "warehouse_storage": "https://images.unsplash.com/photo-1587578769987-776c5bcd4c6e?crop=entropy&cs=srgb&fm=jpg&q=85"
+  },
+  "icons": {
+    "library": "lucide-react",
+    "recommended_icons": [
+      "Tractor",
+      "Calendar",
+      "Clock",
+      "Users",
+      "ShieldCheck",
+      "CheckCircle2",
+      "AlertCircle",
+      "BellRing",
+      "Building2",
+      "CreditCard",
+      "Languages",
+      "PhoneCall",
+      "QrCode",
+      "TrendingUp",
+      "FileText"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build a production-grade React frontend with JS files (.js / .jsx) matching the backend FastAPI REST APIs.",
+    "Implement full end-to-end functionality for both Farmer Persona and Procurement Officer Persona.",
+    "Include live queue simulation using interval polling or state triggers so judges can test real-time queue position updates.",
+    "Ensure every input, button, card, status badge, and navigation item has explicit `data-testid` attributes (e.g. data-testid='book-slot-btn').",
+    "Style the portal to look like an authentic Government of India platform (Pradhan Mantri Fasal Bima Yojana / e-NAM inspired) with crisp green accents, clean typography, Ashoka emblem badge styling, and multi-lingual EN/HI text support.",
+    "DO NOT use transparent backgrounds on dropdowns or modals — use solid or heavy backdrop-blur white surfaces.",
+    "Use Lucide React icons instead of raw emojis for a clean professional look."
+  ]
+}
