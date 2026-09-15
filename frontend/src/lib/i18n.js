@@ -123,6 +123,10 @@ export const translations = {
     s_in_review: "In Review",
     s_resolved: "Resolved",
     s_rejected: "Rejected",
+    jobs: "Jobs",
+    jobs_title: "Mandi Jobs Board",
+    jobs_sub: "Earn extra income during procurement season. Loaders, labour, security and helpers needed near you.",
+    apply_now: "Apply Now",
   },
   hi: {
     app_name: "उपभोक्ता मामले ई-खरीद",
@@ -248,6 +252,10 @@ export const translations = {
     s_in_review: "समीक्षा में",
     s_resolved: "हल हो गया",
     s_rejected: "अस्वीकृत",
+    jobs: "नौकरियां",
+    jobs_title: "मंडी नौकरी बोर्ड",
+    jobs_sub: "खरीद सीज़न में अतिरिक्त आय कमाएं। लोडर, मजदूर, सुरक्षा और सहायक की ज़रूरत।",
+    apply_now: "अभी आवेदन करें",
   },
   pa: {
     app_name: "ਖਪਤਕਾਰ ਮਾਮਲੇ ਈ-ਖ਼ਰੀਦ",
@@ -373,5 +381,9 @@ export const translations = {
     s_in_review: "ਸਮੀਖਿਆ ਵਿੱਚ",
     s_resolved: "ਹੱਲ ਹੋਇਆ",
     s_rejected: "ਰੱਦ",
+    jobs: "ਨੌਕਰੀਆਂ",
+    jobs_title: "ਮੰਡੀ ਨੌਕਰੀ ਬੋਰਡ",
+    jobs_sub: "ਖਰੀਦ ਸੀਜ਼ਨ ਦੌਰਾਨ ਵਾਧੂ ਆਮਦਨ ਕਮਾਓ। ਲੋਡਰ, ਮਜ਼ਦੂਰ, ਸੁਰੱਖਿਆ ਤੇ ਸਹਾਇਕ ਦੀ ਲੋੜ।",
+    apply_now: "ਹੁਣੇ ਅਪਲਾਈ ਕਰੋ",
   },
 };

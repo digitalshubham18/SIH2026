@@ -568,6 +568,203 @@ async def pay(bid: str, user=Depends(admin_only)):
 async def admin_mandis(user=Depends(admin_only)):
     return await db.mandis.find({}, {"_id": 0}).to_list(500)
 
+# ---------- Today's Crops ----------
+def _officer_mandi(user):
+    return user.get("mandi_id")
+
+@api.get("/admin/today-crops")
+async def today_crops(mandi_id: Optional[str] = None, user=Depends(admin_only)):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    mid = mandi_id or _officer_mandi(user)
+    q = {"slot_date": today, "status": {"$in": ["booked", "queued", "in_process", "completed"]}}
+    if mid:
+        q["mandi_id"] = mid
+    bookings = await db.bookings.find(q, {"_id": 0}).to_list(1000)
+    crop_agg = {}
+    for b in bookings:
+        c = b.get("crop_name", "Unknown")
+        entry = crop_agg.setdefault(c, {"crop": c, "quintal_expected": 0, "farmers": 0, "in_process": 0, "completed": 0})
+        entry["quintal_expected"] += b.get("quantity_quintal", 0)
+        entry["farmers"] += 1
+        if b.get("status") == "in_process":
+            entry["in_process"] += 1
+        if b.get("status") == "completed":
+            entry["completed"] += 1
+    crops = sorted(crop_agg.values(), key=lambda x: -x["quintal_expected"])
+    total_qtl = sum(c["quintal_expected"] for c in crops)
+    return {"date": today, "mandi_id": mid, "crops": crops, "total_expected_quintal": total_qtl, "total_farmers": len(bookings), "bookings": bookings}
+
+# ---------- Machinery ----------
+MACHINERY_TYPES = ["weighing_scale", "moisture_meter", "forklift", "tarpaulin", "computer", "generator", "cctv", "loader"]
+
+class MachineryIn(BaseModel):
+    mandi_id: Optional[str] = None
+    name: str
+    type: str
+    status: str = "operational"  # operational | maintenance | broken
+    notes: Optional[str] = None
+    last_serviced: Optional[str] = None
+
+@api.get("/admin/machinery")
+async def list_machinery(mandi_id: Optional[str] = None, user=Depends(admin_only)):
+    mid = mandi_id or _officer_mandi(user)
+    q = {"mandi_id": mid} if mid else {}
+    items = await db.machinery.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+@api.post("/admin/machinery")
+async def add_machinery(body: MachineryIn, user=Depends(admin_only)):
+    if body.type not in MACHINERY_TYPES:
+        raise HTTPException(400, f"Invalid type. Allowed: {MACHINERY_TYPES}")
+    if body.status not in ("operational", "maintenance", "broken"):
+        raise HTTPException(400, "Invalid status")
+    mid = body.mandi_id or _officer_mandi(user)
+    if not mid:
+        raise HTTPException(400, "mandi_id required")
+    mandi = await db.mandis.find_one({"id": mid})
+    if not mandi:
+        raise HTTPException(404, "Mandi not found")
+    m = {
+        "id": new_id(),
+        "mandi_id": mid,
+        "mandi_name": mandi["name"],
+        "name": body.name,
+        "type": body.type,
+        "status": body.status,
+        "notes": body.notes,
+        "last_serviced": body.last_serviced,
+        "created_at": now_iso(),
+    }
+    await db.machinery.insert_one(m)
+    m.pop("_id", None)
+    return m
+
+@api.patch("/admin/machinery/{mid}")
+async def update_machinery(mid: str, body: MachineryIn, user=Depends(admin_only)):
+    if body.status not in ("operational", "maintenance", "broken"):
+        raise HTTPException(400, "Invalid status")
+    await db.machinery.update_one({"id": mid}, {"$set": {
+        "name": body.name, "type": body.type, "status": body.status,
+        "notes": body.notes, "last_serviced": body.last_serviced,
+    }})
+    return {"ok": True}
+
+@api.delete("/admin/machinery/{mid}")
+async def delete_machinery(mid: str, user=Depends(admin_only)):
+    await db.machinery.delete_one({"id": mid})
+    return {"ok": True}
+
+# ---------- Temporary Jobs ----------
+JOB_ROLES = ["loader", "labour", "cleaner", "data_entry", "security", "packer", "helper"]
+
+class JobIn(BaseModel):
+    mandi_id: Optional[str] = None
+    title: str
+    description: str
+    role: str
+    wage_per_day: float
+    workers_needed: int
+    work_date: str  # YYYY-MM-DD
+    contact_phone: str
+
+class JobApplyIn(BaseModel):
+    name: str
+    phone: str
+    note: Optional[str] = None
+
+@api.get("/jobs")
+async def public_jobs(state: Optional[str] = None):
+    """Public list of open jobs — visible to farmers."""
+    q = {"status": "open"}
+    jobs = await db.jobs.find(q, {"_id": 0}).sort("created_at", -1).to_list(200)
+    if state:
+        mandis = await db.mandis.find({"state": state}, {"_id": 0}).to_list(500)
+        mids = {m["id"] for m in mandis}
+        jobs = [j for j in jobs if j["mandi_id"] in mids]
+    # hide applications details for public
+    for j in jobs:
+        j["applications_count"] = len(j.get("applications", []))
+        j.pop("applications", None)
+    return jobs
+
+@api.post("/jobs/{jid}/apply")
+async def apply_job(jid: str, body: JobApplyIn, user=Depends(current_user)):
+    j = await db.jobs.find_one({"id": jid})
+    if not j:
+        raise HTTPException(404, "Job not found")
+    if j["status"] != "open":
+        raise HTTPException(400, "Job is closed")
+    existing = next((a for a in j.get("applications", []) if a["phone"] == body.phone), None)
+    if existing:
+        raise HTTPException(400, "Already applied")
+    app_rec = {
+        "id": new_id(),
+        "applicant_id": user["id"],
+        "name": body.name,
+        "phone": body.phone,
+        "note": body.note,
+        "status": "pending",
+        "applied_at": now_iso(),
+    }
+    await db.jobs.update_one({"id": jid}, {"$push": {"applications": app_rec}})
+    return {"ok": True, "application": app_rec}
+
+@api.get("/admin/jobs")
+async def list_jobs(mandi_id: Optional[str] = None, user=Depends(admin_only)):
+    mid = mandi_id or _officer_mandi(user)
+    q = {"mandi_id": mid} if mid else {}
+    jobs = await db.jobs.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return jobs
+
+@api.post("/admin/jobs")
+async def create_job(body: JobIn, user=Depends(admin_only)):
+    if body.role not in JOB_ROLES:
+        raise HTTPException(400, f"Invalid role. Allowed: {JOB_ROLES}")
+    mid = body.mandi_id or _officer_mandi(user)
+    if not mid:
+        raise HTTPException(400, "mandi_id required")
+    mandi = await db.mandis.find_one({"id": mid})
+    if not mandi:
+        raise HTTPException(404, "Mandi not found")
+    j = {
+        "id": new_id(),
+        "mandi_id": mid,
+        "mandi_name": mandi["name"],
+        "mandi_state": mandi["state"],
+        "mandi_district": mandi["district"],
+        "title": body.title,
+        "description": body.description,
+        "role": body.role,
+        "wage_per_day": body.wage_per_day,
+        "workers_needed": body.workers_needed,
+        "work_date": body.work_date,
+        "contact_phone": body.contact_phone,
+        "status": "open",
+        "applications": [],
+        "posted_by": user["name"],
+        "created_at": now_iso(),
+    }
+    await db.jobs.insert_one(j)
+    j.pop("_id", None)
+    return j
+
+@api.post("/admin/jobs/{jid}/close")
+async def close_job(jid: str, user=Depends(admin_only)):
+    await db.jobs.update_one({"id": jid}, {"$set": {"status": "closed"}})
+    return {"ok": True}
+
+@api.post("/admin/jobs/{jid}/applications/{aid}/decide")
+async def decide_application(jid: str, aid: str, decision: str, user=Depends(admin_only)):
+    if decision not in ("accepted", "rejected"):
+        raise HTTPException(400, "Invalid decision")
+    await db.jobs.update_one(
+        {"id": jid, "applications.id": aid},
+        {"$set": {"applications.$.status": decision}},
+    )
+    return {"ok": True}
+
+@api.get("/admin/mandis")
+
 # ---------- Analytics ----------
 @api.get("/admin/analytics")
 async def admin_analytics(user=Depends(admin_only)):

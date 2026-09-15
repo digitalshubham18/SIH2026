@@ -1,6 +1,6 @@
 """Seed data for DoCA Procurement Portal."""
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 
 def _iso():
@@ -99,6 +99,7 @@ async def run_seed(db, hash_password):
 
     # Officer demo account
     if not await db.users.find_one({"phone": "9999900002"}):
+        khanna = await db.mandis.find_one({"code": "PB-KHN-01"})
         await db.users.insert_one({
             "id": "officer-001",
             "name": "Amrit Singh (Officer)",
@@ -109,6 +110,8 @@ async def run_seed(db, hash_password):
             "language": "en",
             "state": "Punjab",
             "district": "Ludhiana",
+            "mandi_id": khanna["id"] if khanna else None,
+            "mandi_name": khanna["name"] if khanna else None,
             "created_at": _iso(),
         })
 
@@ -131,7 +134,6 @@ async def run_seed(db, hash_password):
 
     # Historical demo bookings for analytics wow-factor (last 7 days)
     if await db.bookings.count_documents({"status": {"$in": ["completed", "paid"]}}) < 20:
-        from datetime import timedelta
         mandis_all = await db.mandis.find({}).to_list(500)
         crops_all = await db.crops.find({}).to_list(50)
         today = datetime.now(timezone.utc).date()
@@ -185,3 +187,54 @@ async def run_seed(db, hash_password):
                 })
         if hist:
             await db.bookings.insert_many(hist)
+
+    # Seed machinery for Khanna Mandi (officer's mandi)
+    if await db.machinery.count_documents({}) == 0:
+        khanna = await db.mandis.find_one({"code": "PB-KHN-01"})
+        if khanna:
+            items = [
+                {"name": "Bulk Weighbridge #1", "type": "weighing_scale", "status": "operational", "notes": "50-ton digital, calibrated", "last_serviced": "2026-01-12"},
+                {"name": "Platform Scale (Yard-A)", "type": "weighing_scale", "status": "maintenance", "notes": "Calibration pending", "last_serviced": "2025-11-20"},
+                {"name": "Moisture Meter Grainpro", "type": "moisture_meter", "status": "operational", "notes": "Range 8-25%", "last_serviced": "2026-02-01"},
+                {"name": "Toyota Forklift 3T", "type": "forklift", "status": "operational", "notes": "Diesel, 3-ton", "last_serviced": "2026-01-28"},
+                {"name": "Forklift Hyster 2T", "type": "forklift", "status": "broken", "notes": "Hydraulic leak — pending repair", "last_serviced": "2025-10-05"},
+                {"name": "Tarpaulin Set (30x40 ft)", "type": "tarpaulin", "status": "operational", "notes": "8 pieces, waterproof", "last_serviced": "2026-01-05"},
+                {"name": "Yard PC Terminal", "type": "computer", "status": "operational", "notes": "e-Procurement client", "last_serviced": "2026-02-10"},
+                {"name": "Kirloskar Generator 50KVA", "type": "generator", "status": "operational", "notes": "Backup power", "last_serviced": "2026-01-30"},
+                {"name": "CCTV DVR (16-ch)", "type": "cctv", "status": "operational", "notes": "24x7 recording", "last_serviced": "2026-02-05"},
+                {"name": "Belt Loader Conveyor", "type": "loader", "status": "operational", "notes": "15m belt, 5-hp", "last_serviced": "2026-01-15"},
+            ]
+            docs = [{"id": f"mach-{i}", "mandi_id": khanna["id"], "mandi_name": khanna["name"], **it, "created_at": _iso()} for i, it in enumerate(items, 1)]
+            await db.machinery.insert_many(docs)
+
+    # Seed sample jobs for Khanna Mandi
+    if await db.jobs.count_documents({}) == 0:
+        khanna = await db.mandis.find_one({"code": "PB-KHN-01"})
+        if khanna:
+            today = datetime.now(timezone.utc).date()
+            samples = [
+                {"title": "Loaders needed — Wheat rush day", "description": "5 loaders required for tomorrow's expected wheat rush. Physical work, 8-hour shift.", "role": "loader", "wage_per_day": 750, "workers_needed": 5, "day_offset": 1},
+                {"title": "Data-entry helper (bilingual)", "description": "Assist officer in entering procurement data during peak hours. Must know basic computer + Punjabi/Hindi.", "role": "data_entry", "wage_per_day": 900, "workers_needed": 2, "day_offset": 2},
+                {"title": "Overnight security", "description": "2 security personnel for overnight yard duty. 12-hour shift.", "role": "security", "wage_per_day": 850, "workers_needed": 2, "day_offset": 0},
+            ]
+            docs = []
+            for i, s in enumerate(samples, 1):
+                docs.append({
+                    "id": f"job-{i}",
+                    "mandi_id": khanna["id"],
+                    "mandi_name": khanna["name"],
+                    "mandi_state": khanna["state"],
+                    "mandi_district": khanna["district"],
+                    "title": s["title"],
+                    "description": s["description"],
+                    "role": s["role"],
+                    "wage_per_day": s["wage_per_day"],
+                    "workers_needed": s["workers_needed"],
+                    "work_date": (today + timedelta(days=s["day_offset"])).isoformat(),
+                    "contact_phone": "9999900002",
+                    "status": "open",
+                    "applications": [],
+                    "posted_by": "Amrit Singh (Officer)",
+                    "created_at": _iso(),
+                })
+            await db.jobs.insert_many(docs)

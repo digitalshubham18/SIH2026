@@ -32,6 +32,7 @@ export default function Navbar() {
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-700">
             <Link to="/" data-testid="nav-home" className="hover:text-emerald-700">{t("home")}</Link>
             <Link to="/mandis" data-testid="nav-mandis" className="hover:text-emerald-700">{t("mandis")}</Link>
+            <Link to="/jobs" data-testid="nav-jobs" className="hover:text-emerald-700">{t("jobs")}</Link>
             {user && <Link to="/dashboard" data-testid="nav-dashboard" className="hover:text-emerald-700">{t("dashboard")}</Link>}
             {user && <Link to="/bookings" data-testid="nav-bookings" className="hover:text-emerald-700">{t("my_bookings")}</Link>}
             {user && user.role === "farmer" && <Link to="/grievances" data-testid="nav-grievances" className="hover:text-emerald-700">{t("grievance_desk")}</Link>}

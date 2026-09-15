@@ -13,11 +13,15 @@ import QueueStatus from "@/pages/QueueStatus";
 import MyBookings from "@/pages/MyBookings";
 import Notifications from "@/pages/Notifications";
 import Grievances from "@/pages/Grievances";
+import PublicJobs from "@/pages/PublicJobs";
 import AdminLayout from "@/components/AdminLayout";
 import AdminOverview from "@/pages/AdminOverview";
 import AdminBookings from "@/pages/AdminBookings";
 import AdminGrievances from "@/pages/AdminGrievances";
 import AdminMandis from "@/pages/AdminMandis";
+import AdminTodayCrops from "@/pages/AdminTodayCrops";
+import AdminMachinery from "@/pages/AdminMachinery";
+import AdminJobs from "@/pages/AdminJobs";
 
 function Protected({ children, role }) {
   const { user, loading } = useAuth();
@@ -44,10 +48,14 @@ export default function App() {
             <Route path="/bookings" element={<Protected><MyBookings /></Protected>} />
             <Route path="/notifications" element={<Protected><Notifications /></Protected>} />
             <Route path="/grievances" element={<Protected><Grievances /></Protected>} />
+            <Route path="/jobs" element={<PublicJobs />} />
             <Route path="/admin" element={<Protected role={["admin", "officer"]}><AdminLayout /></Protected>}>
               <Route index element={<AdminOverview />} />
+              <Route path="today" element={<AdminTodayCrops />} />
               <Route path="bookings" element={<AdminBookings />} />
               <Route path="grievances" element={<AdminGrievances />} />
+              <Route path="machinery" element={<AdminMachinery />} />
+              <Route path="jobs" element={<AdminJobs />} />
               <Route path="mandis" element={<AdminMandis />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -4,11 +4,14 @@ import { useLang } from "@/contexts/LangContext";
 import AshokaEmblem from "@/components/AshokaEmblem";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LayoutDashboard, Package, LifeBuoy, Building2, Bell, LogOut, Languages, ShieldCheck, ExternalLink } from "lucide-react";
+import { LayoutDashboard, Package, LifeBuoy, Building2, Bell, LogOut, Languages, ShieldCheck, ExternalLink, Wheat, Wrench, Briefcase } from "lucide-react";
 
 const links = [
   { to: "/admin", label: "Command Center", icon: LayoutDashboard, end: true },
+  { to: "/admin/today", label: "Today's Crops", icon: Wheat },
   { to: "/admin/bookings", label: "Bookings Queue", icon: Package },
+  { to: "/admin/machinery", label: "Machinery", icon: Wrench },
+  { to: "/admin/jobs", label: "Job Postings", icon: Briefcase },
   { to: "/admin/grievances", label: "Grievance Desk", icon: LifeBuoy },
   { to: "/admin/mandis", label: "Mandi Directory", icon: Building2 },
 ];
