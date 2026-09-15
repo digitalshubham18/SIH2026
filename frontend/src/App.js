@@ -12,9 +12,12 @@ import Mandis from "@/pages/Mandis";
 import QueueStatus from "@/pages/QueueStatus";
 import MyBookings from "@/pages/MyBookings";
 import Notifications from "@/pages/Notifications";
-import AdminDashboard from "@/pages/AdminDashboard";
 import Grievances from "@/pages/Grievances";
+import AdminLayout from "@/components/AdminLayout";
+import AdminOverview from "@/pages/AdminOverview";
+import AdminBookings from "@/pages/AdminBookings";
 import AdminGrievances from "@/pages/AdminGrievances";
+import AdminMandis from "@/pages/AdminMandis";
 
 function Protected({ children, role }) {
   const { user, loading } = useAuth();
@@ -41,8 +44,12 @@ export default function App() {
             <Route path="/bookings" element={<Protected><MyBookings /></Protected>} />
             <Route path="/notifications" element={<Protected><Notifications /></Protected>} />
             <Route path="/grievances" element={<Protected><Grievances /></Protected>} />
-            <Route path="/admin" element={<Protected role={["admin", "officer"]}><AdminDashboard /></Protected>} />
-            <Route path="/admin/grievances" element={<Protected role={["admin", "officer"]}><AdminGrievances /></Protected>} />
+            <Route path="/admin" element={<Protected role={["admin", "officer"]}><AdminLayout /></Protected>}>
+              <Route index element={<AdminOverview />} />
+              <Route path="bookings" element={<AdminBookings />} />
+              <Route path="grievances" element={<AdminGrievances />} />
+              <Route path="mandis" element={<AdminMandis />} />
+            </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

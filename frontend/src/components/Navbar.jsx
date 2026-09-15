@@ -38,9 +38,6 @@ export default function Navbar() {
             {user && ["admin","officer"].includes(user.role) && (
               <Link to="/admin" data-testid="nav-admin" className="hover:text-emerald-700 flex items-center gap-1"><ShieldCheck className="w-4 h-4" />{t("admin")}</Link>
             )}
-            {user && ["admin","officer"].includes(user.role) && (
-              <Link to="/admin/grievances" data-testid="nav-admin-grievances" className="hover:text-emerald-700">Grievances</Link>
-            )}
           </nav>
 
           <div className="flex items-center gap-2">
