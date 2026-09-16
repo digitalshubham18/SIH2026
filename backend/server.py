@@ -93,9 +93,10 @@ class OfficerRegisterIn(BaseModel):
     phone: str
     password: str
     email: str
-    mandi_id: str
+    mandi_id: Optional[str] = None  # optional legacy — new flow uses commission
+    commission_id: str
     aadhaar_last4: str
-    designation: Optional[str] = "Procurement Officer"
+    designation: Optional[str] = "Mandi Owner"
     documents_note: Optional[str] = None
 
 class OfficerReviewIn(BaseModel):
@@ -190,9 +191,8 @@ async def officer_register(body: OfficerRegisterIn):
         raise HTTPException(400, "Phone already registered")
     if await db.users.find_one({"email": body.email}):
         raise HTTPException(400, "Email already registered")
-    mandi = await db.mandis.find_one({"id": body.mandi_id})
-    if not mandi:
-        raise HTTPException(404, "Mandi not found")
+    if not body.commission_id or len(body.commission_id.strip()) < 3:
+        raise HTTPException(400, "Commission ID (e-NAM/APMC) required")
     if len(body.aadhaar_last4) != 4 or not body.aadhaar_last4.isdigit():
         raise HTTPException(400, "Aadhaar last 4 must be 4 digits")
     user = {
@@ -202,12 +202,8 @@ async def officer_register(body: OfficerRegisterIn):
         "email": body.email,
         "password_hash": hash_password(body.password),
         "role": "officer",
-        "designation": body.designation,
-        "mandi_id": body.mandi_id,
-        "mandi_name": mandi["name"],
-        "mandi_code": mandi["code"],
-        "state": mandi["state"],
-        "district": mandi["district"],
+        "designation": body.designation or "Mandi Owner",
+        "commission_id": body.commission_id.strip().upper(),
         "aadhaar_last4": body.aadhaar_last4,
         "documents_note": body.documents_note,
         "verification_status": "pending",
@@ -220,7 +216,6 @@ async def officer_register(body: OfficerRegisterIn):
     await db.users.insert_one(user)
     user.pop("password_hash", None)
     user.pop("_id", None)
-    # Do NOT issue token — account is pending
     return {"ok": True, "user": user, "message": "Application submitted. DoCA will verify within 24-48 hours."}
 
 @api.get("/admin/officer-applications")
@@ -266,6 +261,95 @@ async def reject_officer(uid: str, body: OfficerReviewIn, user=Depends(current_u
 @api.get("/auth/me")
 async def me(user=Depends(current_user)):
     return user
+
+# ---------- Ownership helpers ----------
+async def _user_mandi_ids(user) -> Optional[List[str]]:
+    """Return list of mandi_ids owned by user. None = no scoping (admin)."""
+    if user["role"] == "admin":
+        return None
+    if user["role"] == "officer":
+        owned = await db.mandis.find({"owner_id": user["id"]}, {"_id": 0, "id": 1}).to_list(500)
+        ids = [m["id"] for m in owned]
+        # legacy assignment fallback
+        if user.get("mandi_id") and user["mandi_id"] not in ids:
+            ids.append(user["mandi_id"])
+        return ids
+    return []
+
+async def _scope_query(user, extra: Optional[dict] = None) -> dict:
+    q = dict(extra or {})
+    mids = await _user_mandi_ids(user)
+    if mids is not None:
+        q["mandi_id"] = {"$in": mids} if mids else "___none___"
+    return q
+
+# ---------- Owner mandi CRUD ----------
+class MandiIn(BaseModel):
+    name: str
+    code: str
+    state: str
+    district: str
+    address: Optional[str] = None
+    capacity_per_day: int = 100
+    crops: List[str] = []
+
+@api.post("/owner/mandis")
+async def owner_create_mandi(body: MandiIn, user=Depends(current_user)):
+    if user["role"] not in ("officer", "admin"):
+        raise HTTPException(403, "Officer/Admin only")
+    if user["role"] == "officer" and user.get("verification_status") != "approved":
+        raise HTTPException(403, "Account not approved")
+    if await db.mandis.find_one({"code": body.code}):
+        raise HTTPException(400, "Mandi code already exists")
+    m = {
+        "id": new_id(),
+        "name": body.name,
+        "code": body.code.upper(),
+        "state": body.state,
+        "district": body.district,
+        "address": body.address,
+        "capacity_per_day": body.capacity_per_day,
+        "crops": body.crops or [],
+        "is_active": True,
+        "owner_id": user["id"],
+        "owner_name": user["name"],
+        "created_at": now_iso(),
+    }
+    await db.mandis.insert_one(m)
+    m.pop("_id", None)
+    return m
+
+@api.get("/owner/mandis")
+async def owner_list_mandis(user=Depends(current_user)):
+    if user["role"] == "admin":
+        return await db.mandis.find({}, {"_id": 0}).to_list(500)
+    if user["role"] != "officer":
+        raise HTTPException(403, "Officer only")
+    return await db.mandis.find({"owner_id": user["id"]}, {"_id": 0}).to_list(500)
+
+@api.patch("/owner/mandis/{mid}")
+async def owner_update_mandi(mid: str, body: MandiIn, user=Depends(current_user)):
+    m = await db.mandis.find_one({"id": mid})
+    if not m:
+        raise HTTPException(404, "Not found")
+    if user["role"] == "officer" and m.get("owner_id") != user["id"]:
+        raise HTTPException(404, "Not found")
+    await db.mandis.update_one({"id": mid}, {"$set": {
+        "name": body.name, "code": body.code.upper(), "state": body.state,
+        "district": body.district, "address": body.address,
+        "capacity_per_day": body.capacity_per_day, "crops": body.crops or [],
+    }})
+    return {"ok": True}
+
+@api.delete("/owner/mandis/{mid}")
+async def owner_delete_mandi(mid: str, user=Depends(current_user)):
+    m = await db.mandis.find_one({"id": mid})
+    if not m:
+        raise HTTPException(404, "Not found")
+    if user["role"] == "officer" and m.get("owner_id") != user["id"]:
+        raise HTTPException(404, "Not found")
+    await db.mandis.delete_one({"id": mid})
+    return {"ok": True}
 
 # ---------- Crops ----------
 @api.get("/crops")
@@ -460,9 +544,10 @@ GRIEVANCE_SLA_HOURS = 48
 
 class GrievanceIn(BaseModel):
     booking_id: Optional[str] = None
-    category: str  # weight | grade | payment | other
+    mandi_id: str
     subject: str
     description: str
+    category: Optional[str] = "other"
 
 class GrievanceRespond(BaseModel):
     action: str  # resolve | reject | in_review
@@ -484,8 +569,9 @@ def _enrich_grievance(g: dict) -> dict:
 
 @api.post("/grievances")
 async def create_grievance(body: GrievanceIn, user=Depends(current_user)):
-    if body.category not in ("weight", "grade", "payment", "other"):
-        raise HTTPException(400, "Invalid category")
+    mandi = await db.mandis.find_one({"id": body.mandi_id})
+    if not mandi:
+        raise HTTPException(404, "Mandi not found")
     booking_ref = None
     if body.booking_id:
         b = await db.bookings.find_one({"id": body.booking_id})
@@ -499,9 +585,11 @@ async def create_grievance(body: GrievanceIn, user=Depends(current_user)):
         "farmer_name": user["name"],
         "farmer_phone": user["phone"],
         "farmer_state": user.get("state"),
+        "mandi_id": body.mandi_id,
+        "mandi_name": mandi["name"],
         "booking_id": body.booking_id,
         "booking_ref": booking_ref,
-        "category": body.category,
+        "category": body.category or "other",
         "subject": body.subject,
         "description": body.description,
         "status": "open",
@@ -523,7 +611,7 @@ async def my_grievances(user=Depends(current_user)):
 
 @api.get("/admin/grievances")
 async def admin_grievances(status: Optional[str] = None, category: Optional[str] = None, user=Depends(admin_only)):
-    q = {}
+    q = await _scope_query(user)
     if status:
         q["status"] = status
     if category:
@@ -533,22 +621,23 @@ async def admin_grievances(status: Optional[str] = None, category: Optional[str]
 
 @api.get("/admin/grievance-stats")
 async def grievance_stats(user=Depends(admin_only)):
-    total = await db.grievances.count_documents({})
-    open_c = await db.grievances.count_documents({"status": "open"})
-    review_c = await db.grievances.count_documents({"status": "in_review"})
-    resolved_c = await db.grievances.count_documents({"status": "resolved"})
-    rejected_c = await db.grievances.count_documents({"status": "rejected"})
-    # SLA breach = open/in_review older than 48h
+    scope = await _scope_query(user)
+    total = await db.grievances.count_documents(scope)
+    open_c = await db.grievances.count_documents({**scope, "status": "open"})
+    review_c = await db.grievances.count_documents({**scope, "status": "in_review"})
+    resolved_c = await db.grievances.count_documents({**scope, "status": "resolved"})
+    rejected_c = await db.grievances.count_documents({**scope, "status": "rejected"})
     breach_cutoff = (datetime.now(timezone.utc) - timedelta(hours=GRIEVANCE_SLA_HOURS)).isoformat()
-    breached = await db.grievances.count_documents({
-        "status": {"$in": ["open", "in_review"]}, "created_at": {"$lt": breach_cutoff}
-    })
+    breached = await db.grievances.count_documents({**scope, "status": {"$in": ["open", "in_review"]}, "created_at": {"$lt": breach_cutoff}})
     return {"total": total, "open": open_c, "in_review": review_c, "resolved": resolved_c, "rejected": rejected_c, "sla_breached": breached}
 
 @api.post("/admin/grievances/{gid}/respond")
 async def respond_grievance(gid: str, body: GrievanceRespond, user=Depends(admin_only)):
     g = await db.grievances.find_one({"id": gid})
     if not g:
+        raise HTTPException(404, "Not found")
+    mids = await _user_mandi_ids(user)
+    if mids is not None and g.get("mandi_id") not in mids:
         raise HTTPException(404, "Not found")
     if body.action not in ("resolve", "reject", "in_review"):
         raise HTTPException(400, "Invalid action")
@@ -560,12 +649,7 @@ async def respond_grievance(gid: str, body: GrievanceRespond, user=Depends(admin
         "responded_at": now_iso(),
     }})
     ntype = "success" if body.action == "resolve" else ("warning" if body.action == "reject" else "info")
-    await _push_notification(
-        g["farmer_id"],
-        f"Grievance {g['ticket_no']} · {new_status.replace('_', ' ').title()}",
-        body.resolution_note[:120],
-        ntype,
-    )
+    await _push_notification(g["farmer_id"], f"Grievance {g['ticket_no']} · {new_status.replace('_', ' ').title()}", body.resolution_note[:120], ntype)
     return {"ok": True}
 
 # ---------- Admin / Officer ----------
@@ -599,24 +683,32 @@ async def admin_stats(user=Depends(admin_only)):
 async def admin_bookings(
     mandi_id: Optional[str] = None, status: Optional[str] = None, date: Optional[str] = None, user=Depends(admin_only)
 ):
-    q = {}
+    q = await _scope_query(user)
     if mandi_id:
+        # if scoped, ensure mandi is in scope
+        if isinstance(q.get("mandi_id"), dict) and mandi_id not in q["mandi_id"].get("$in", []):
+            return []
         q["mandi_id"] = mandi_id
     if status:
         q["status"] = status
     if date:
         q["slot_date"] = date
-    return await db.bookings.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    # FCFS: sort by created_at ASC per mandi
+    return await db.bookings.find(q, {"_id": 0}).sort("created_at", 1).to_list(500)
+
+async def _assert_booking_scope(user, b):
+    mids = await _user_mandi_ids(user)
+    if mids is not None and b.get("mandi_id") not in mids:
+        raise HTTPException(404, "Not found")
 
 @api.post("/admin/bookings/{bid}/start")
 async def start_processing(bid: str, user=Depends(admin_only)):
     b = await db.bookings.find_one({"id": bid})
     if not b:
         raise HTTPException(404, "Not found")
+    await _assert_booking_scope(user, b)
     await db.bookings.update_one({"id": bid}, {"$set": {"status": "in_process"}})
-    await _push_notification(
-        b["farmer_id"], "Your Turn - Please Report", f"Token #{b['token_number']} is now being processed at {b['mandi_name']}", "info"
-    )
+    await _push_notification(b["farmer_id"], "Your Turn - Please Report", f"Token #{b['token_number']} is now being processed at {b['mandi_name']}", "info")
     return {"ok": True}
 
 @api.post("/admin/bookings/{bid}/complete")
@@ -624,23 +716,19 @@ async def complete_procurement(bid: str, body: ProcessIn, user=Depends(admin_onl
     b = await db.bookings.find_one({"id": bid})
     if not b:
         raise HTTPException(404, "Not found")
+    await _assert_booking_scope(user, b)
+    # Admin cannot process payments — only mandi owner
+    if user["role"] == "admin":
+        raise HTTPException(403, "Only Mandi Owner can complete procurement")
     total = round(body.actual_weight_quintal * body.price_per_quintal, 2)
-    await db.bookings.update_one(
-        {"id": bid},
-        {"$set": {
-            "status": "completed",
-            "actual_weight_quintal": body.actual_weight_quintal,
-            "quality_grade": body.quality_grade,
-            "price_per_quintal": body.price_per_quintal,
-            "total_amount": total,
-        }},
-    )
-    await _push_notification(
-        b["farmer_id"],
-        "Procurement Completed",
-        f"Grade {body.quality_grade}, {body.actual_weight_quintal} qtl @ ₹{body.price_per_quintal} = ₹{total}",
-        "success",
-    )
+    await db.bookings.update_one({"id": bid}, {"$set": {
+        "status": "completed",
+        "actual_weight_quintal": body.actual_weight_quintal,
+        "quality_grade": body.quality_grade,
+        "price_per_quintal": body.price_per_quintal,
+        "total_amount": total,
+    }})
+    await _push_notification(b["farmer_id"], "Procurement Completed", f"Grade {body.quality_grade}, {body.actual_weight_quintal} qtl @ ₹{body.price_per_quintal} = ₹{total}", "success")
     return {"ok": True, "total_amount": total}
 
 @api.post("/admin/bookings/{bid}/pay")
@@ -648,6 +736,9 @@ async def pay(bid: str, user=Depends(admin_only)):
     b = await db.bookings.find_one({"id": bid})
     if not b:
         raise HTTPException(404, "Not found")
+    await _assert_booking_scope(user, b)
+    if user["role"] == "admin":
+        raise HTTPException(403, "Only Mandi Owner can initiate DBT")
     if b["status"] != "completed":
         raise HTTPException(400, "Complete procurement first")
     ref = f"DBT{random.randint(100000, 999999)}"
@@ -662,7 +753,10 @@ async def pay(bid: str, user=Depends(admin_only)):
 
 @api.get("/admin/mandis")
 async def admin_mandis(user=Depends(admin_only)):
-    return await db.mandis.find({}, {"_id": 0}).to_list(500)
+    if user["role"] == "admin":
+        return await db.mandis.find({}, {"_id": 0}).to_list(500)
+    mids = await _user_mandi_ids(user) or []
+    return await db.mandis.find({"id": {"$in": mids}}, {"_id": 0}).to_list(500)
 
 # ---------- Today's Crops ----------
 def _officer_mandi(user):
@@ -671,11 +765,12 @@ def _officer_mandi(user):
 @api.get("/admin/today-crops")
 async def today_crops(mandi_id: Optional[str] = None, user=Depends(admin_only)):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    mid = mandi_id or _officer_mandi(user)
-    q = {"slot_date": today, "status": {"$in": ["booked", "queued", "in_process", "completed"]}}
-    if mid:
-        q["mandi_id"] = mid
-    bookings = await db.bookings.find(q, {"_id": 0}).to_list(1000)
+    q = await _scope_query(user, {"slot_date": today, "status": {"$in": ["booked", "queued", "in_process", "completed"]}})
+    if mandi_id:
+        if isinstance(q.get("mandi_id"), dict) and mandi_id not in q["mandi_id"].get("$in", []):
+            return {"date": today, "mandi_id": mandi_id, "crops": [], "total_expected_quintal": 0, "total_farmers": 0, "bookings": []}
+        q["mandi_id"] = mandi_id
+    bookings = await db.bookings.find(q, {"_id": 0}).sort("created_at", 1).to_list(1000)
     crop_agg = {}
     for b in bookings:
         c = b.get("crop_name", "Unknown")
@@ -688,7 +783,7 @@ async def today_crops(mandi_id: Optional[str] = None, user=Depends(admin_only)):
             entry["completed"] += 1
     crops = sorted(crop_agg.values(), key=lambda x: -x["quintal_expected"])
     total_qtl = sum(c["quintal_expected"] for c in crops)
-    return {"date": today, "mandi_id": mid, "crops": crops, "total_expected_quintal": total_qtl, "total_farmers": len(bookings), "bookings": bookings}
+    return {"date": today, "mandi_id": mandi_id, "crops": crops, "total_expected_quintal": total_qtl, "total_farmers": len(bookings), "bookings": bookings}
 
 # ---------- Machinery ----------
 MACHINERY_TYPES = ["weighing_scale", "moisture_meter", "forklift", "tarpaulin", "computer", "generator", "cctv", "loader"]
@@ -703,8 +798,11 @@ class MachineryIn(BaseModel):
 
 @api.get("/admin/machinery")
 async def list_machinery(mandi_id: Optional[str] = None, user=Depends(admin_only)):
-    mid = mandi_id or _officer_mandi(user)
-    q = {"mandi_id": mid} if mid else {}
+    q = await _scope_query(user)
+    if mandi_id:
+        if isinstance(q.get("mandi_id"), dict) and mandi_id not in q["mandi_id"].get("$in", []):
+            return []
+        q["mandi_id"] = mandi_id
     items = await db.machinery.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
     return items
 
@@ -807,8 +905,11 @@ async def apply_job(jid: str, body: JobApplyIn, user=Depends(current_user)):
 
 @api.get("/admin/jobs")
 async def list_jobs(mandi_id: Optional[str] = None, user=Depends(admin_only)):
-    mid = mandi_id or _officer_mandi(user)
-    q = {"mandi_id": mid} if mid else {}
+    q = await _scope_query(user)
+    if mandi_id:
+        if isinstance(q.get("mandi_id"), dict) and mandi_id not in q["mandi_id"].get("$in", []):
+            return []
+        q["mandi_id"] = mandi_id
     jobs = await db.jobs.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
     return jobs
 
@@ -851,12 +952,18 @@ async def close_job(jid: str, user=Depends(admin_only)):
 
 @api.post("/admin/jobs/{jid}/applications/{aid}/decide")
 async def decide_application(jid: str, aid: str, decision: str, user=Depends(admin_only)):
+    j = await db.jobs.find_one({"id": jid})
+    if not j:
+        raise HTTPException(404, "Not found")
+    # Only mandi owner (poster) can decide — admins cannot
+    if user["role"] == "admin":
+        raise HTTPException(403, "Only Mandi Owner who posted the job can decide")
+    mids = await _user_mandi_ids(user) or []
+    if j.get("mandi_id") not in mids:
+        raise HTTPException(404, "Not found")
     if decision not in ("accepted", "rejected"):
         raise HTTPException(400, "Invalid decision")
-    await db.jobs.update_one(
-        {"id": jid, "applications.id": aid},
-        {"$set": {"applications.$.status": decision}},
-    )
+    await db.jobs.update_one({"id": jid, "applications.id": aid}, {"$set": {"applications.$.status": decision}})
     return {"ok": True}
 
 @api.get("/admin/mandis")

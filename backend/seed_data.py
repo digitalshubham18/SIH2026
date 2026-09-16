@@ -98,10 +98,11 @@ async def run_seed(db, hash_password):
         })
 
     # Officer demo account
+    officer_id = "officer-001"
     if not await db.users.find_one({"phone": "9999900002"}):
         khanna = await db.mandis.find_one({"code": "PB-KHN-01"})
         await db.users.insert_one({
-            "id": "officer-001",
+            "id": officer_id,
             "name": "Amrit Singh (Officer)",
             "phone": "9999900002",
             "email": "officer@doca.gov.in",
@@ -113,11 +114,16 @@ async def run_seed(db, hash_password):
             "mandi_id": khanna["id"] if khanna else None,
             "mandi_name": khanna["name"] if khanna else None,
             "mandi_code": khanna["code"] if khanna else None,
+            "commission_id": "ENAM-PB-LDH-2019-KHN",
             "verification_status": "approved",
             "verification_note": "Auto-approved (demo account)",
-            "designation": "Procurement Officer",
+            "designation": "Mandi Owner",
             "created_at": _iso(),
         })
+    # Always ensure Khanna mandi is owned by the demo officer (idempotent)
+    khanna = await db.mandis.find_one({"code": "PB-KHN-01"})
+    if khanna:
+        await db.mandis.update_one({"id": khanna["id"]}, {"$set": {"owner_id": officer_id, "owner_name": "Amrit Singh (Officer)"}})
 
     # Demo farmer
     if not await db.users.find_one({"phone": "9876543210"}):

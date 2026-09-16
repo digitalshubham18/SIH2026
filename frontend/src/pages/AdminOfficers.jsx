@@ -96,10 +96,17 @@ export default function AdminOfficers() {
                     {o.designation && <Badge className="bg-slate-100 text-slate-700">{o.designation}</Badge>}
                   </div>
                   <div className="mt-2 grid md:grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-600">
-                    <div className="flex gap-2 items-center"><Building2 className="w-3.5 h-3.5 text-emerald-600" />{o.mandi_name} <span className="font-mono text-slate-400">{o.mandi_code}</span></div>
+                    <div className="flex gap-2 items-center"><Building2 className="w-3.5 h-3.5 text-emerald-600" />{o.mandi_name || "—"} <span className="font-mono text-slate-400">{o.mandi_code || ""}</span></div>
                     <div className="flex gap-2 items-center"><Phone className="w-3.5 h-3.5 text-emerald-600" />{o.phone}</div>
                     <div className="flex gap-2 items-center"><Mail className="w-3.5 h-3.5 text-emerald-600" />{o.email}</div>
                     <div className="flex gap-2 items-center"><IdCard className="w-3.5 h-3.5 text-emerald-600" />Aadhaar ending {o.aadhaar_last4}</div>
+                    {o.commission_id && (
+                      <div className="flex gap-2 items-center col-span-2">
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="font-mono text-amber-800 font-semibold">{o.commission_id}</span>
+                        <a href="https://www.enam.gov.in/web/" target="_blank" rel="noreferrer" data-testid={`enam-verify-${o.id}`} className="text-blue-700 hover:underline text-[11px]">Verify on e-NAM ↗</a>
+                      </div>
+                    )}
                   </div>
                   {o.documents_note && (
                     <div className="mt-2 text-xs text-slate-500 italic">"{o.documents_note}"</div>

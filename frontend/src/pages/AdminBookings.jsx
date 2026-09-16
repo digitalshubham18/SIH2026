@@ -22,7 +22,7 @@ export default function AdminBookings() {
     const params = statusFilter !== "all" ? { status: statusFilter } : {};
     api.get("/admin/bookings", { params }).then((r) => setBookings(r.data));
   };
-  useEffect(() => { load(); }, [statusFilter]);
+  useEffect(() => { load(); const id = setInterval(load, 5000); return () => clearInterval(id); }, [statusFilter]);
 
   const startBooking = async (id) => {
     try { await api.post(`/admin/bookings/${id}/start`); toast.success("Processing started"); load(); }

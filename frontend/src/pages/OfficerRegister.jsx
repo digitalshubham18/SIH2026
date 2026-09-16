@@ -17,7 +17,7 @@ export default function OfficerRegister() {
   const nav = useNavigate();
   const [mandis, setMandis] = useState([]);
   const [step, setStep] = useState(1);
-  const [f, setF] = useState({ name: "", phone: "", password: "", email: "", mandi_id: "", aadhaar_last4: "", designation: "Procurement Officer", documents_note: "" });
+  const [f, setF] = useState({ name: "", phone: "", password: "", email: "", mandi_id: "", commission_id: "", aadhaar_last4: "", designation: "Mandi Owner", documents_note: "" });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(null);
 
@@ -26,7 +26,7 @@ export default function OfficerRegister() {
   const upd = (k) => (e) => setF({ ...f, [k]: typeof e === "string" ? e : e.target.value });
 
   const canNext1 = f.name.trim() && /^\d{10}$/.test(f.phone) && f.password.length >= 6 && /^\S+@\S+\.\S+$/.test(f.email);
-  const canSubmit = f.mandi_id && /^\d{4}$/.test(f.aadhaar_last4);
+  const canSubmit = /^\d{4}$/.test(f.aadhaar_last4) && f.commission_id && f.commission_id.length >= 3;
 
   const submit = async () => {
     setLoading(true);
@@ -97,15 +97,20 @@ export default function OfficerRegister() {
               <div className="space-y-3">
                 <div className="text-xs uppercase tracking-widest text-emerald-700 font-semibold mb-2">Step 2 · Mandi & Verification</div>
                 <div>
-                  <Label>Assigned Mandi</Label>
+                  <Label>Preferred Mandi <span className="text-slate-400 text-xs">(optional — you'll create your own after approval)</span></Label>
                   <Select value={f.mandi_id} onValueChange={upd("mandi_id")}>
-                    <SelectTrigger data-testid="op-mandi" className="bg-white"><SelectValue placeholder="Select the mandi you operate" /></SelectTrigger>
+                    <SelectTrigger data-testid="op-mandi" className="bg-white"><SelectValue placeholder="Optional — select existing mandi" /></SelectTrigger>
                     <SelectContent className="bg-white max-h-72">
                       {mandis.map((m) => <SelectItem key={m.id} value={m.id}>{m.name} · {m.code} ({m.district}, {m.state})</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div><Label>Aadhaar Last 4 Digits</Label><Input data-testid="op-aadhaar" value={f.aadhaar_last4} onChange={upd("aadhaar_last4")} maxLength={4} placeholder="XXXX" /></div>
+                <div>
+                  <Label>e-NAM / APMC Commission ID</Label>
+                  <Input data-testid="op-commission" value={f.commission_id || ""} onChange={upd("commission_id")} placeholder="e.g. ENAM-PB-LDH-2019-KHN" />
+                  <a href="https://www.enam.gov.in/web/" target="_blank" rel="noreferrer" className="text-xs text-blue-700 hover:underline mt-1 inline-block">Find your Commission ID on e-NAM →</a>
+                </div>
                 <div><Label>Supporting Documents Note <span className="text-slate-400 text-xs">(optional)</span></Label><Textarea data-testid="op-docs" rows={3} value={f.documents_note} onChange={upd("documents_note")} placeholder="Government appointment order number / mandi license / anything to help DoCA verify" /></div>
                 <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex gap-2 items-start">
                   <ShieldCheck className="w-4 h-4 mt-0.5" />
