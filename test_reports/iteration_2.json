@@ -1,0 +1,58 @@
+{
+  "summary": "Comprehensive test of SIH 2026 procurement portal refactor: role/mandi data isolation, officer approval, FCFS ordering, booking-processing authorization, job-decision authorization, grievance mandi requirement, and frontend refactor pages. 24/25 backend tests pass. Key bug found: admin CAN call POST /api/admin/bookings/{bid}/start (returns 200) — the requirement says admin should get 403. /complete and /pay correctly return 403 for admin but /start is missing the admin-block. Also found a latent code bug: server.py line 969 has a stray '@api.get(\"/admin/mandis\")' decorator that ends up applied to admin_analytics(), registering admin_analytics twice under two paths.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/admin/bookings/{bid}/start", "issue": "Admin is NOT blocked from starting a booking. Returns 200 for admin. Requirement: only Mandi Owner can start/complete/pay. Add `if user['role'] == 'admin': raise HTTPException(403, 'Only Mandi Owner can start processing')` inside start_processing() (server.py ~line 704-712), mirroring the check that exists in complete_procurement() and pay().", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "server.py line 969", "issue": "Stray decorator `@api.get(\"/admin/mandis\")` above the analytics function has no function body attached to it — decorators attach to the next `def`, so admin_analytics() gets registered twice: at /admin/analytics AND at /admin/mandis. FastAPI resolves in registration order so the earlier /admin/mandis (line 754) still wins, but this is a latent bug. Delete line 969."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_ok": [
+    "Officer registration POST /api/auth/officer-register creates pending user (blocked from login → 403 'Officer account is pending')",
+    "POST /api/admin/officers/{uid}/approve enables login",
+    "Bad commission_id (<3 chars) → 400; bad aadhaar_last4 (non-4-digit) → 400",
+    "GET /api/admin/bookings as admin: 75 bookings, sorted by created_at ASC (FCFS)",
+    "GET /api/admin/bookings as officer: 8 bookings, ALL mandi_id=mandi-pb-khn-01 (Khanna), FCFS order",
+    "GET /api/admin/grievances: admin sees all, Khanna officer sees only Khanna grievances",
+    "GET /api/admin/machinery and /api/admin/jobs are correctly scoped per officer's mandi",
+    "POST /api/grievances requires mandi_id, subject, description (422 on missing mandi_id)",
+    "Admin BLOCKED from /complete (403) and /pay (403)",
+    "Officer of Khanna CAN /start, /complete, /pay",
+    "Cross-officer isolation: a fresh officer with a different mandi gets 404 when trying /start on a Khanna booking, and empty [] when listing bookings",
+    "Admin BLOCKED from POST /admin/jobs/{jid}/applications/{aid}/decide (403)",
+    "Frontend /officer-register step 2 renders 'e-NAM / APMC Commission ID' input + 'Find your Commission ID on e-NAM' link (href=https://www.enam.gov.in/web/)",
+    "Frontend /grievances form: only Mandi (data-testid=grievance-mandi) + Subject + Description + optional Booking; NO hardcoded category chips",
+    "Frontend /admin/officers page code renders commission_id and Verify-on-e-NAM link with data-testid=enam-verify-{id} (server returns commission_id in officer-applications)",
+    "Frontend /admin/bookings has setInterval(load, 5000) with cleanup (AdminBookings.jsx line 25) — verified via 1 request captured in 7s window"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add admin 403 block inside start_processing() in server.py so /api/admin/bookings/{bid}/start returns 403 when user['role'] == 'admin' (mirror complete/pay).",
+    "Delete stray `@api.get(\"/admin/mandis\")` decorator on server.py line 969 (causes double-registration of admin_analytics)."
+  ],
+  "critical_code_review_comments": [
+    "server.py start_processing() missing admin-role block that /complete and /pay both have. Inconsistent authorization logic.",
+    "server.py line 969: dangling route decorator attaches to next function definition. Must be deleted.",
+    "decide_application() uses `decision: str` as query parameter (not body). Consider making it a JSON body for consistency, though this is stylistic.",
+    "grievance category has default 'other' but the frontend never surfaces it — safe for backward compat but consider removing the field from the model/UI entirely.",
+    "server.py is 1037 lines — approaching the 700-line threshold; consider splitting into modules (auth.py, bookings.py, grievances.py, jobs.py).",
+    "load_dotenv is only called for backend/.env; if any code sets env vars elsewhere, may need explicit override=False handling (currently fine)."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "96% (24/25)", "frontend": "100% of verified flows"},
+  "test_credentials": "Admin 9999900001/Admin@123, Officer 9999900002/Officer@123 (owns Khanna Grain Market mandi-pb-khn-01), Farmer 9876543210/Farmer@123",
+  "seed_data_creation": "Test suite creates TEST_-prefixed officers via /auth/officer-register and creates fresh bookings when needed. No cleanup performed — safe because prefix isolates them.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live at /app/backend/tests/backend_test.py (pytest, uses pytest-xdist -n 2 loadscope from pytest.ini). Run with: `cd /app/backend && REACT_APP_BACKEND_URL=https://agri-proc-track-1.preview.emergentagent.com python -m pytest tests/backend_test.py -v`. If Khanna has no 'booked' bookings, the fixture will create one via farmer. After fix for admin-start-block, only 1 test needs re-run: TestBookingProcessing::test_admin_cannot_start.",
+  "rca of the issue": "server.py has admin-blocks in complete_procurement (line 720-722) and pay (line 740-741) that raise HTTPException(403, 'Only Mandi Owner...') when user['role'] == 'admin'. The same block was NOT added in start_processing() at line 704. Fix: insert `if user['role'] == 'admin': raise HTTPException(403, 'Only Mandi Owner can start processing')` before the update statement in start_processing()."
+}
